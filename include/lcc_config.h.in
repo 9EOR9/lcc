@@ -1,0 +1,16 @@
+/*
+ * HEADER
+ *
+ */
+
+#ifndef _CONFIG_H_
+#define _CONFIG_H_
+
+#cmakedefine HAVE_BIGENDIAN @HAVE_BIGENDIAN@
+
+#define LCC_VERSION_MAJOR 1
+#define LCC_VERSION_MINOR 0
+#define LCC_VERSION_PATCH 0
+#define LCC_VERSION_SUFFIX "dev-0"
+
+#endif /* _CONFIG_H_ */

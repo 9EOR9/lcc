@@ -1,0 +1,2 @@
+INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/external/libtap)
+ADD_LIBRARY(tap tap.c)
