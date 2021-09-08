@@ -15,7 +15,7 @@ static int64_t gen_random_range(int64_t min, int64_t max)
 static int test_intvals(void)
 {
   int i= 0;
-  char buffer[10];
+  u_char buffer[10];
 
   srand(time(NULL));
 
@@ -33,7 +33,6 @@ static int test_intvals(void)
       int64_t ival;
       double dval;
     } swap_dbl;
-    double dval;
     float fval1, fval2;
 
     ui8= gen_random_range(0, UCHAR_MAX);
@@ -81,13 +80,15 @@ static int test_lenc(void)
 {
   u_int64_t ui64;
   u_char *buf= alloca(10), *p;
+  u_char *end= buf + 10;
+  u_int8_t error= 0;
   u_int64_t max_range[] = {0, USHRT_MAX, UINT_MAX, ULLONG_MAX};
 
   p= buf;
   ui64= 0;
   p= lenc_to_p(p, ui64);
   p= buf;
-  ASSERT_EQ(ui64, p_to_lenc(&p), "Wrong len encoding (len=%lld)", ui64);
+  ASSERT_EQ(ui64, p_to_lenc(&p, end, &error), "Wrong len encoding (len=%lld)", ui64);
 
   for (u_int8_t i= 0; i < 20; i++)
   {
@@ -97,7 +98,7 @@ static int test_lenc(void)
       ui64= gen_random_range(max_range[j] + 1, max_range[j + 1]);
       p= lenc_to_p(p, ui64);
       p= buf;
-      ASSERT_EQ(ui64, p_to_lenc(&p), "Wrong len encoding (len=%lld)", ui64);
+      ASSERT_EQ(ui64, p_to_lenc(&p, end, &error), "Wrong len encoding (len=%lld)", ui64);
     }
   }
   return 0; 
@@ -106,8 +107,7 @@ static int test_lenc(void)
 static int test_timeenc()
 {
   LCC_TIME l1, l2;
-  u_int8_t len;
-  char buf[20];
+  u_char buf[20];
 
   memset(&l1, 0, sizeof(LCC_TIME));
   memset(&l2, 0, sizeof(LCC_TIME));

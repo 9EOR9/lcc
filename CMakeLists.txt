@@ -6,6 +6,25 @@ include(TestBigEndian)
 
 test_big_endian(HAVE_BIGENDIAN)
 
+# versioning
+set(LCC_VERSION_MAJOR 0)
+set(LCC_VERSION_MINOR 9)
+set(LCC_VERSION_PATCH 0)
+set(LCC_VERSION_SUFFIX "dev0")
+
+set(LCC_VERSION_STR "${LCC_VERSION_MAJOR}.${LCC_VERSION_MINOR}.${LCC_VERSION_PATCH}")
+if(LCC_VERSION_SUFFIX)
+set(LCC_VERSION_STR "${LCC_VERSION_STR}-${LCC_VERSION_SUFFIX}")
+endif()
+
+#standard settings
+set(LCC_DEFAULT_PORT 3306)
+set(LCC_DEFAULT_UNIX_SOCKET "/tmp/mysql.sock")
+
+if(CMAKE_COMPILER_IS_GNUCC)
+  SET(CMAKE_C_FLAGS "-Wunused -Wlogical-op -Wno-uninitialized  -Wall -Wextra -Wformat-security -Wno-init-self -Wwrite-strings -Wshift-count-overflow -Wdeclaration-after-statement -Wno-undef -Wno-unknown-pragmas")
+endif()
+
 configure_file(${CMAKE_SOURCE_DIR}/include/lcc_config.h.in
                ${CMAKE_BINARY_DIR}/include/lcc_config.h @ONLY)
 
@@ -17,10 +36,12 @@ add_subdirectory(external/inih)
 
 set (source_files
      src/lcc_error.c
-     src/protocol.c
+     src/lcc_protocol.c
      src/lcc_configuration.c
-     src/auth.c
-     src/sha1.c
+     src/lcc_auth.c
+     src/lcc_comm.c
+     src/lcc_list.c
+     external/sha1/sha1.c
      src/lcc.c)
 
 add_executable(lcc ${source_files})

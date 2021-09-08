@@ -8,18 +8,39 @@
 #include <assert.h>
 #include <stdio.h>
 #include <math.h>
-#include <libsocket/libunixsocket.h>
+#include <sys/types.h>
+#include <libsocket/libinetsocket.h>
 
+u_int8_t lcc_initialized= 0;
 
-u_int32_t
-LCC_init_handle(LCC_HANDLE **handle, enum LCC_handle_type type, void *base)
+/**
+ * @brief: allocates and initializes a LCC handle
+ * @param: handle  A pointer of a LCC_HANDLE * structure
+ * @param: type    Type of handle
+ * @param: base    For LCC_STATEMENT type the connection object, otherwise NULL.
+ * @return LCC_ERROR ER_OK on success, in case the initialozation failed an error code.
+*/
+LCC_ERROR API_FUNC
+LCC_init_handle(LCC_HANDLE **handle, enum LCC_handle_type type, void *connection __attribute__((unused)))
 {
+  u_int16_t rc;
+
+  if (!handle)
+    return ER_INVALID_POINTER;
+
+  /* todo: check if system was initialized */
+
   switch(type) {
     case LCC_CONNECTION:
     {
       if (!(*handle= (lcc_handle *)calloc(1, sizeof(lcc_connection))))
         return ER_OUT_OF_MEMORY;
       (*handle)->type= LCC_CONNECTION;
+      if ((rc= lcc_comm_init((lcc_connection *)*handle)))
+      {
+        free(handle);
+        return rc;
+      }
       break;
     }
     default:
@@ -28,19 +49,32 @@ LCC_init_handle(LCC_HANDLE **handle, enum LCC_handle_type type, void *base)
   return ER_OK;
 }
 
-void LCC_close_handle(LCC_HANDLE *handle)
+/**
+ * @brief: closes the handle and releases memory
+ * @param: handle   A handle which was previously allocated by LCC_init_handle
+ * @return: LCC_ERROR  ER_OK on success, otherwise error code.
+*/
+LCC_ERROR API_FUNC
+LCC_close_handle(LCC_HANDLE *handle)
 {
+  CHECK_HANDLE_TYPE(handle, LCC_CONNECTION);
+
   switch(handle->type) {
     case LCC_CONNECTION:
+      lcc_comm_close((lcc_connection *)handle);
       lcc_configuration_close((lcc_connection *)handle);
       break;
+    default:
+      return ER_INVALID_HANDLE;
   }
+  return ER_OK;
 }
 
-u_int32_t LCC_get_info(LCC_HANDLE *handle, enum LCC_get_server_info info, void *buffer)
+LCC_ERROR API_FUNC
+LCC_get_info(LCC_HANDLE *handle, enum LCC_get_server_info info, void *buffer)
 {
-  if (((lcc_handle *)(handle))->type != LCC_CONNECTION)
-    return ER_INVALID_HANDLE_TYPE;
+  CHECK_HANDLE_TYPE(handle, LCC_CONNECTION);
+  buffer= NULL;
 
   switch(info) {
     default:
@@ -50,33 +84,32 @@ u_int32_t LCC_get_info(LCC_HANDLE *handle, enum LCC_get_server_info info, void *
   return 0;
 }
 
-extern u_int16_t lcc_read_server_hello(lcc_connection *conn, lcc_scramble *scramble);
-
 int main()
 {
   LCC_HANDLE *conn;
-  char buf[2000];
-  ssize_t x=0;
-  u_int32_t pkt_len= 0;
-  char *p= buf;
-  u_int8_t protocol= 0;
-  lcc_scramble scramble;
-  const char *filenames[]= {"/etc/my.cnf", NULL};
-
-  memset(&scramble, 0, sizeof(lcc_scramble));
+  LCC_ERROR rc;
+  int sock, ret;
+  size_t pkt_len;
+  const char *filenames[]= {"/etc/my.cnf","/home/georg/.my.cnf", NULL};
 
   LCC_init_handle(&conn, LCC_CONNECTION, NULL);
 
   LCC_configuration_load_file(conn, filenames, NULL);
 
-  int sock= create_unix_stream_socket("/tmp/mysql.sock", 0);
+  ret= sock= create_inet_stream_socket("localhost", "3306", LIBSOCKET_IPv4, 0);
+
+  if (ret < 0) {
+      exit(1);
+  }
+
   LCC_configuration_set(conn, NULL, LCC_SOCKET_NO, &sock);
   LCC_configuration_set(conn, NULL, LCC_AUTH_PLUGIN, (void *)"mysql_native_password");
   ((lcc_connection *)conn)->socket= sock;
 
-  lcc_read_server_hello((lcc_connection *)conn, &scramble);
+  rc= lcc_read_server_hello((lcc_connection *)conn);
+  rc= lcc_send_client_hello((lcc_connection *)conn);
+  rc= lcc_comm_read((lcc_connection *)conn, &pkt_len);
+  printf("rc=%ld\n", pkt_len);
 
-  destroy_unix_socket(sock);
-
-
+  destroy_inet_socket(sock);
 }

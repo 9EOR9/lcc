@@ -21,12 +21,19 @@ const char *lcc_errormsg[]=
   /* 2004 */ "Failed to allocate memory (%ld Bytes)."
   /* 2005 */ "Malformed packet (Offset %ld)",
   /* 2006 */ "Unknown or unsupported authentication method: '%s'",
+  /* 2007 */ "Invalid handle type specified",
+  /* 2008 */ "Unknown or invalid option (%d) specified",
+  /* 2009 */ "Error (%d) occured wile reading data from server",
+  /* 2010 */ "Error (%d) occured while sending data to server",
 };
 
 #define LCC_CLIENT_ERROR(x) lcc_errormsg[(x)-2000];
 #define LCC_UNKNOWN_SQLSTATE "HY000"
 
 void lcc_set_error(lcc_error *error,
+                   const char *file,
+                   const char *func,
+                   u_int32_t lineno,
                    u_int16_t error_no,
                    const char *sqlstate,
                    const char *error_message,
@@ -35,8 +42,8 @@ void lcc_set_error(lcc_error *error,
   va_list ap;
   const char *errmsg;
 
-  if ((error_no < 2000 | error_no - 2000 > sizeof(lcc_errormsg) / sizeof(char *)) &&
-      !error_message)
+  if ((error_no < 2000) |
+     ((size_t)error_no - 2000 > sizeof(lcc_errormsg) / sizeof(char *)) && !error_message)
   {
     /* we can't determine error message, return unknown error */
     errmsg= LCC_CLIENT_ERROR(ER_UNKNOWN);
@@ -54,4 +61,8 @@ void lcc_set_error(lcc_error *error,
   va_start(ap, error_message);
   vsnprintf(error->error, LCC_MAX_ERROR_LEN, errmsg, ap);
   va_end(ap);
+
+  error->info.file= file;
+  error->info.func= func;
+  error->info.lineno= lineno;
 }

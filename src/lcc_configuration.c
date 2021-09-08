@@ -1,6 +1,8 @@
 /* lcc_configuration */
 #include <lcc.h>
 #include <lcc_priv.h>
+#include <lcc_error.h>
+#include <lcc_pack.h>
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -8,6 +10,15 @@
 
 #define LCC_FIELD_PTR(S, OFS, TYPE) ((TYPE *)((char*)(S) + (OFS)))
 #define MAX_RECURSION 32
+
+lcc_key_val default_conn_attr[]=
+{
+  {"_client_name", "lcc"},
+  {"_client_version", LCC_VERSION_STR},
+  {"_os", LCC_SYSTEM_TYPE},
+  {"_platform", LCC_MACHINE_TYPE},
+  {NULL, NULL}
+};
 
 char **lcc_configuration_dirs= NULL;
 
@@ -90,6 +101,18 @@ lcc_configuration_options lcc_conf_options[]=
     (const char *[]){"tls_verify_peer", "ssl_verify", NULL}
   },
   {
+    LCC_USER,
+    offsetof(lcc_connection, configuration.user),
+    LCC_CONF_STR,
+    (const char *[]){"user", NULL}
+  },
+  {
+    LCC_PASSWORD,
+    offsetof(lcc_connection, configuration.password),
+    LCC_CONF_STR,
+    (const char *[]){"password", "passwd", NULL}
+  },
+  {
     LCC_SOCKET_NO,
     offsetof(lcc_connection, socket),
     LCC_CONF_INT32,
@@ -137,7 +160,7 @@ lcc_get_configuration(const char *key,
   return NULL;
 }
 
-u_int8_t
+LCC_ERROR API_FUNC
 LCC_configuration_set(LCC_HANDLE *handle,
                       const char *option_str,
                       enum LCC_option option,
@@ -177,6 +200,8 @@ else\
       GET_INTVAL(address, u_int8_t, option_str, buffer);
     }
     break;
+    default:
+      break;
   }
   return 0;
 }
@@ -200,7 +225,7 @@ void lcc_configuration_close(lcc_connection *conn)
 }
 
 /* MariaDB/MySQL related */
-static char *client_sections[] = {
+static const char *client_sections[] = {
   "client", "client-server", "client-mariadb", "lcc-client", NULL
 };
 

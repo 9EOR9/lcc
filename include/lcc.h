@@ -1,7 +1,24 @@
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <sys/types.h>
 #include <stddef.h>
+#include <lcc_config.h>
+
+#ifdef _WIN32
+#define API_FUNC __stdcall
+#else
+#define API_FUNC
+#endif
+
+#define CHECK_HANDLE_TYPE(hdl, hdl_type) \
+if (!(hdl)) \
+  return ER_INVALID_POINTER; \
+if ((hdl)->type != (hdl_type)) \
+  return ER_INVALID_HANDLE;
 
 enum LCC_get_server_info {
   GET_CURRENT_DB= 0,
@@ -25,6 +42,8 @@ enum LCC_option {
   LCC_TLS_VERIFY_PEER,
   LCC_AUTH_PLUGIN,
   LCC_REMEMBER_CONFIG,
+  LCC_USER,
+  LCC_PASSWORD,
   LCC_INVALID_OPTION= 0xFFFF
 };
 
@@ -94,6 +113,19 @@ enum LCC_handle_type {
                                         CAP_SESSION_TRACKING |\
                                         CAP_CONNECT_ATTRS)
 
+#define CLIENT_CAPS               	    (CAP_MYSQL | \
+                                         CAP_LONG_FLAG |\
+                                         CAP_TRANSACTIONS |\
+                                         CAP_SECURE_CONNECTION |\
+                                         CAP_MULTI_RESULTS | \
+                                         CAP_PS_MULTI_RESULTS |\
+                                         CAP_PROTOCOL_41 |\
+                                         CAP_PLUGIN_AUTH |\
+                                         CAP_PLUGIN_AUTH_LENENC_CLIENT_DATA | \
+                                         CAP_SESSION_TRACKING |\
+                                         CAP_CONNECT_ATTRS)
+
+
 /* Compress and TLS will be activated on demand */
 #define CLIENT_DEFAULT_CAPS             ((CLIENT_CAP_FLAGS & ~CAP_COMPRESS) & ~CAP_TLS)
 
@@ -101,14 +133,57 @@ typedef struct {
   enum LCC_handle_type type;
 } lcc_handle;
 
+typedef struct {
+  char *str;
+  size_t len;
+}  LCC_STRING;
+
 typedef lcc_handle LCC_HANDLE;
 
+typedef u_int16_t LCC_ERROR;
+typedef struct lcc_list {
+  void *data;
+  struct lcc_list *next;
+} LCC_LIST;
+
+typedef enum lcc_session_state_type {
+  TRACK_SYSTEM_VARIABLES= 0,
+  TRACK_SCHEMA,
+  TRACK_STATE_CHANGE
+} LCC_SESSION_STATE_TYPE;
+
+typedef struct {
+  LCC_SESSION_STATE_TYPE type;
+  LCC_STRING str;
+} LCC_SESSION_TRACK_INFO;
+
+/* Server status flags */
+#define LCC_STATUS_IN_TRANS               1
+#define LCC_STATUS_AUTOCOMMIT             2
+#define LCC_STATUS_MORE_RESULTS_EXIST     8
+#define LCC_STATUS_NO_GOOD_INDEX_USED    16
+#define LCC_STATUS_NO_INDEX_USED         32
+#define LCC_STATUS_CURSOR_EXISTS         64
+#define LCC_STATUS_LAST_ROW_SENT        128
+#define LCC_STATUS_DB_DROPPED           256
+#define LCC_STATUS_NO_BACKSLASH_ESCAPE  512
+#define LCC_STATUS_METADATA_CHANGED    1024
+#define LCC_STATUS_SLOW_QUERY          2048
+#define LCC_STATUS_PS_OUTPARAMS        4096
+#define LCC_STATUS_IN_TRANS_READONLY   8192
+#define LCC_STATUS_SESSION_STATE_CHANGED 16384
+
 /* API calls */
-u_int32_t
+LCC_ERROR API_FUNC
 LCC_init_handle(LCC_HANDLE **handle, enum LCC_handle_type type, void *base_handle);
-u_int32_t
+
+LCC_ERROR API_FUNC
 LCC_get_info(LCC_HANDLE *handle, enum LCC_get_server_info info, void *buffer);
-u_int8_t
+
+LCC_ERROR API_FUNC
+lcc_close_handle(LCC_HANDLE *handle);
+
+LCC_ERROR API_FUNC
 LCC_configuration_set(LCC_HANDLE *handle,
                       const char *option_str,
                       enum LCC_option option,
@@ -116,3 +191,7 @@ LCC_configuration_set(LCC_HANDLE *handle,
 
 u_int8_t
 LCC_configuration_load_file(LCC_HANDLE *handle, const char **filenames, const char *section);
+
+#ifdef __cplusplus
+}
+#endif

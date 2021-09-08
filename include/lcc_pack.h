@@ -94,8 +94,8 @@ float_to_le(float f)
 #define ui16_to_p(b, u)     *((u_int16_t *)(b))= (u)
 #define ui24_to_p(b, u)     {\
                               *(b)=   (u_char)(u);\
-                              *(b+1)= (u_int32_t)(u) >> 8;\
-                              *(b+2)= (u_int32_t)(u) >> 16;\
+                              *(b+1)= (u_char)(u_int32_t)(u) >> 8;\
+                              *(b+2)= (u_char)(u_int32_t)(u) >> 16;\
                             }
 #define ui24_to_p_inc(b, u) ui24_to_p((b),(u)); (b)+= 3
 #define i32_to_p(b, i)      *((int32_t *)(b)) = (i)
@@ -167,13 +167,32 @@ static inline u_char *lenc_to_p(u_char *b, u_int64_t lenc)
   return b+8;
 }
 
-static inline u_int64_t p_to_lenc(u_char **p)
+static inline u_int8_t lenc_length(size_t length)
+{
+  #define MAX_LENC_SIZE 9
+  unsigned char buffer[MAX_LENC_SIZE], *p;
+
+  p= lenc_to_p(buffer, length);
+  return p - buffer;
+}
+
+static inline u_char *strlenc_to_p(u_char *buffer, u_char *str, size_t len)
+{
+  u_char *start;
+
+  start= lenc_to_p(buffer, (u_int64_t)len);
+  memcpy(start, str, len);
+  return start + len;
+}
+
+static inline u_int64_t p_to_lenc(u_char **p, u_char *end, u_int8_t *error)
 {
   u_char *pos= *p;
+  *error= 0;
 
   if (*pos < 251)
   {
-    *p++;
+    p++;
     return (u_int64_t)p_to_ui8(pos);
   }
   if (*pos == 0xFB)
@@ -183,14 +202,29 @@ static inline u_int64_t p_to_lenc(u_char **p)
   }
   if (*pos == 0xFC)
   {
+    if (end - pos < 3)
+    {
+      *error= 1;
+      return ((u_int64_t)~0);
+    }
     p+=3;
     return (u_int64_t)p_to_ui16(pos+1);
   } else if (*pos == 0xFD)
   {
+    if (end - pos < 4)
+    {
+      *error= 1;
+      return ((u_int64_t)~0);
+    }
     p+=4;
     return (u_int64_t)p_to_ui24(pos+1);
   } else if (*pos == 0xFE)
   {
+    if (end - pos < 9)
+    {
+      *error= 1;
+      return ((u_int64_t)~0);
+    }
     p+=9;
     return p_to_ui64(pos+1);
   }
