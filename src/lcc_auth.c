@@ -23,7 +23,7 @@ static void lcc_xor_buffer(u_char *xored, const u_char *s1, const u_char *s2, si
     *xored++= *s1++ ^ *s2++;
 }
 
-static LCC_ERROR
+static LCC_ERRNO
 lcc_native_password(lcc_connection *conn,
                     const char *password, 
                     u_char *buffer,
@@ -55,7 +55,7 @@ lcc_native_password(lcc_connection *conn,
   return ER_OK;
 }
 
-LCC_ERROR 
+LCC_ERRNO 
 lcc_auth(lcc_connection *conn,
          const char *password,
          u_char *buffer,

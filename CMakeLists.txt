@@ -39,8 +39,10 @@ set (source_files
      src/lcc_protocol.c
      src/lcc_configuration.c
      src/lcc_auth.c
-     src/lcc_comm.c
+     src/lcc_io.c
      src/lcc_list.c
+     src/lcc_mem.c
+     src/lcc_result.c
      external/sha1/sha1.c
      src/lcc.c)
 

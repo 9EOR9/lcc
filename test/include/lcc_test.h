@@ -1,6 +1,7 @@
 #ifndef _LCC_TEST_H_
 #define _LCC_TEST_H_
 
+#include <stdint.h>
 #include <tap.h>
 
 #define OK   0

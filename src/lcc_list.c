@@ -3,7 +3,7 @@
 #include <lcc_error.h>
 #include <stdlib.h>
 
-LCC_ERROR lcc_list_add(LCC_LIST **list, void *data)
+LCC_ERRNO lcc_list_add(LCC_LIST **list, void *data)
 {
   if (!*list)
   {

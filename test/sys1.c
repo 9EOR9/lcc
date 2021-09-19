@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <alloca.h>
+#include <stdint.h>
 
 
 static int64_t gen_random_range(int64_t min, int64_t max)
@@ -21,13 +22,13 @@ static int test_intvals(void)
 
   for (i=0; i < 100; i++)
   {
-    u_int8_t ui8;
+    uint8_t ui8;
     int8_t i8;
-    u_int16_t ui16;
+    uint16_t ui16;
     int16_t i16;
-    u_int32_t ui32;
+    uint32_t ui32;
     int32_t i32;
-    u_int64_t ui64;
+    uint64_t ui64;
     int64_t i64;
     union {
       int64_t ival;
@@ -78,11 +79,11 @@ static int test_intvals(void)
 
 static int test_lenc(void)
 {
-  u_int64_t ui64;
+  uint64_t ui64;
   u_char *buf= alloca(10), *p;
   u_char *end= buf + 10;
-  u_int8_t error= 0;
-  u_int64_t max_range[] = {0, USHRT_MAX, UINT_MAX, ULLONG_MAX};
+  uint8_t error= 0;
+  uint64_t max_range[] = {0, USHRT_MAX, UINT_MAX, ULLONG_MAX};
 
   p= buf;
   ui64= 0;
@@ -90,9 +91,9 @@ static int test_lenc(void)
   p= buf;
   ASSERT_EQ(ui64, p_to_lenc(&p, end, &error), "Wrong len encoding (len=%lld)", ui64);
 
-  for (u_int8_t i= 0; i < 20; i++)
+  for (uint8_t i= 0; i < 20; i++)
   {
-    for (u_int8_t j= 0; j < 4; j++)
+    for (uint8_t j= 0; j < 4; j++)
     {
       p= buf;
       ui64= gen_random_range(max_range[j] + 1, max_range[j + 1]);

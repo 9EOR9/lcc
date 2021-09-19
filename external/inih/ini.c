@@ -228,7 +228,6 @@ int ini_parse_stream(ini_reader reader, void* stream, ini_handler handler,
 #if INI_ALLOW_NO_VALUE
                 *end = '\0';
                 name = rstrip(start);
-                printf("name: %s\n", name);
                 if (!HANDLER(user, section, name, NULL) && !error)
                     error = lineno;
 #else

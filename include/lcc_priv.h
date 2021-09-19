@@ -1,6 +1,8 @@
 #pragma once
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
 
 /* Helper macros */
 
@@ -16,18 +18,74 @@
    (_v1 < _v2) ? _v1 : _v2;\
 })
 
-#define LCC_MAX_ERROR_LEN 255UL
 #define SQLSTATE_LEN 5
 #define SCRAMBLE_LEN 20
 
 #define MIN_COM_BUFFER_SIZE 0x1000
+#define COMM_CACHE_BUFFER_SIZE 16384
+#define LCC_MEM_ALIGN_SIZE 2 * sizeof(void *)
+#define LCC_FIELD_PTR(S, OFS, TYPE) ((TYPE *)((char*)(S) + (OFS)))
+
+/* Protocol commands */
+typedef enum
+{
+  CMD_SLEEP = 0,
+  CMD_CLOSE,
+  CMD_INIT_DB,
+  CMD_QUERY,
+  CMD_FIELD_LIST,
+  CMD_CREATE_DB,
+  CMD_DROP_DB,
+  CMD_REFRESH,
+  CMD_SHUTDOWN,
+  CMD_STATISTICS,
+  CMD_PROCESS_INFO,
+  CMD_CONNECT,
+  CMD_PROCESS_KILL,
+  CMD_DEBUG,
+  CMD_PING,
+  CMD_TIME = 15,
+  CMD_DELAYED_INSERT,
+  CMD_CHANGE_USER,
+  CMD_BINLOG_DUMP,
+  CMD_TABLE_DUMP,
+  CMD_CONNECT_OUT = 20,
+  CMD_REGISTER_SLAVE,
+  CMD_STMT_PREPARE = 22,
+  CMD_STMT_EXECUTE = 23,
+  CMD_STMT_SEND_LONG_DATA = 24,
+  CMD_STMT_CLOSE = 25,
+  CMD_STMT_RESET = 26,
+  CMD_SET_OPTION = 27,
+  CMD_STMT_FETCH = 28,
+  CMD_DAEMON= 29,
+  CMD_UNSUPPORTED= 30,
+  CMD_RESET_CONNECTION = 31,
+  CMD_STMT_BULK_EXECUTE = 250,
+  CMD_RESERVED_1 = 254, /* former COM_MULTI, now removed */
+  CMD_NONE
+} lcc_ioand;
+
+typedef enum {
+  CONN_STATUS_READY=0,
+  CONN_STATUS_RESULT,
+  CONN_STATUS_FETCH
+} lcc_conn_status;
+
 extern char** lcc_configuration_dirs;
 
+typedef struct st_memory_block {
+  void *buffer;
+  size_t total_size;
+  size_t used_size;
+  struct st_memory_block *next;
+} lcc_mem_block;
+
 typedef struct {
-  const char *file;
-  const char *func;
-  u_int32_t lineno;
-} lcc_error_info;
+  size_t prealloc_size;
+  uint8_t in_use;
+  lcc_mem_block *block;
+} lcc_mem;
 
 typedef struct {
   const char *key;
@@ -35,52 +93,37 @@ typedef struct {
 } lcc_key_val;
 
 typedef struct {
-  char sqlstate[6];
-  u_int16_t error_number;
-  char error[LCC_MAX_ERROR_LEN];
-  lcc_error_info info;
-} lcc_error;
-
-typedef struct {
-  /* socket handle */
-  int fd;
-  /* tls_context, obtained by tls_handshake callback */
-  void *tls; 
-  ssize_t (*read)(int handle, char *buffer, size_t len);
-  /* read encrypted data from server */
-  ssize_t (*tls_read)(void *tls, char *buffer, size_t len);
-  /* send data to server */
-  ssize_t (*write)(int handle, char *buffer, size_t len);
-  /* send encrypted data to server */
-  ssize_t (*tls_write)(void *tls, char *buffer, size_t len);
-  /* perform handshake */
-  void *  (*tls_handshake)(void *data);
-  /* verification after handshake */
-  u_int8_t (*tls_verify)(void *tls);
+  /* server status callback */
+  void (*status_change)(LCC_HANDLE *handle, uint32_t status);
+  uint32_t status_flags;
+  void (*report_progress)(LCC_HANDLE *handle, uint8_t stage, uint8_t max_stage,
+                         double progress, char *info, size_t length);
 } lcc_callbacks;
 
 typedef struct {
-  u_int64_t affected_rows;
-  u_int64_t last_insert_id;
-  u_int32_t status;
-  u_int32_t warning_count;
-  u_int32_t server_version;
-  u_int32_t field_count;
+  uint64_t affected_rows;
+  uint64_t last_insert_id;
+  uint32_t status;
+  uint32_t warning_count;
+  uint32_t server_version;
+  uint32_t field_count;
   char *current_db;
-  u_int16_t port;
+  char *info;
+  uint16_t port;
   char *user;
-  u_int8_t protocol;
+  uint8_t protocol;
   char *version;
-  u_int8_t is_mariadb;
-  u_int32_t capabilities;
-  u_int32_t mariadb_capabilities;
+  uint8_t is_mariadb;
+  uint32_t capabilities;
+  uint32_t mariadb_capabilities;
   LCC_LIST *session_state;
+  LCC_LIST *current_session_state;
 } lcc_server;
 
 typedef struct {
   char scramble[21];
   char *plugin;
-  u_int8_t scramble_len;
+  uint8_t scramble_len;
 } lcc_scramble;
 
 typedef struct {
@@ -90,10 +133,10 @@ typedef struct {
   char *tls_capath;
   char *tls_crl;
   char *tls_crlpath;
-  u_int8_t tls;
+  uint8_t tls;
   char *user;
   char *password;
-  u_int16_t port;
+  uint16_t port;
   char *database;
 } lcc_client_options;
 
@@ -103,15 +146,15 @@ typedef struct {
 } lcc_connect_attr;
 
 typedef struct {
-  u_int32_t capabilities;
-  u_int32_t mariadb_capabilities;
-  u_int32_t thread_id;
+  uint32_t capabilities;
+  uint32_t mariadb_capabilities;
+  uint32_t thread_id;
 } lcc_client;
 
 typedef struct {
   char *auth_plugin;
   char *current_db;
-  u_int8_t remember;
+  uint8_t remember;
   char *tls_ca;
   char *tls_ca_path;
   char *tls_cert;
@@ -121,10 +164,11 @@ typedef struct {
   char *tls_key;
   char *user;
   char *password;
-  u_int8_t tls_verify_peer;
+  uint8_t tls_verify_peer;
   int read_timeout;
   int write_timeout;
   lcc_connect_attr *conn_attr;
+  lcc_callbacks callbacks;
 } lcc_configuration;
 
 typedef struct {
@@ -132,25 +176,33 @@ typedef struct {
   char *writebuf;
   char *read_pos;
   char *read_end;
-  char *cached;
   size_t read_size;
   size_t write_size;
-  u_int8_t read_pkt;
+  uint8_t read_pkt;
   char *write_pos;
-} lcc_communication;
+} lcc_io;
 
 typedef struct {
-  u_int32_t type;
+  LCC_HANDLE_TYPE type;
   int socket;
-  lcc_error error;
-  lcc_callbacks callbacks;
+  lcc_conn_status status;
+  LCC_ERROR error;
   lcc_server server;
   lcc_client client;
   lcc_scramble scramble;
   lcc_client_options options;
   lcc_configuration configuration;
-  lcc_communication comm;
+  lcc_io io;
+  uint32_t    column_count;
 } lcc_connection;
+
+typedef struct {
+  LCC_HANDLE_TYPE type;
+  /* internal */
+  lcc_connection *conn;
+  lcc_mem     memory;
+  LCC_COLUMN  *columns;
+} lcc_result;
 
 /* type of configuration option */
 enum enum_configuration_type {
@@ -164,43 +216,67 @@ enum enum_configuration_type {
 };
 
 typedef struct {
-  enum LCC_option option;
+  LCC_OPTION option;
   size_t offset;
   enum enum_configuration_type type;
   const char **keys;
 } lcc_configuration_options;
 
-LCC_ERROR 
+static inline void lcc_clear_session_state(void *data)
+{
+  LCC_SESSION_TRACK_INFO *info= (LCC_SESSION_TRACK_INFO*)data;
+  free((char *)info->str.str);
+  free(info);
+}
+
+static inline size_t lcc_align_size(size_t align_size, size_t size) {
+  return (size + (align_size - 1)) & ~(align_size - 1);
+}
+
+
+LCC_ERRNO 
 lcc_auth(lcc_connection *conn,
          const char *password,
          u_char *buffer,
          size_t *buflen);
 
-LCC_ERROR
-lcc_comm_init(lcc_connection *conn);
+LCC_ERRNO
+lcc_io_init(lcc_connection *conn);
 
 void
-lcc_comm_close(lcc_connection *conn);
+lcc_io_close(lcc_connection *conn);
 
-LCC_ERROR
-lcc_comm_write(lcc_connection *conn, u_char command, char *buffer, size_t len);
+LCC_ERRNO
+lcc_io_write(lcc_connection *conn, lcc_ioand command, char *buffer, size_t len);
 
-LCC_ERROR
-lcc_comm_read(lcc_connection *conn, size_t *pkt_len);
+void 
+lcc_io_close(lcc_connection *conn);
+
+LCC_ERRNO
+lcc_io_read(lcc_connection *conn, size_t *pkt_len);
+
+uint32_t
+lcc_buffered_error_packet(lcc_connection *conn);
 
 void 
 lcc_configuration_close(lcc_connection *conn);
 
-LCC_ERROR
+LCC_ERRNO
 lcc_send_client_hello(lcc_connection *conn);
 
-LCC_ERROR
+LCC_ERRNO
 lcc_read_server_hello(lcc_connection *conn);
 
-typedef void (*lcc_delete_callback)(void *);
-typedef u_int8_t (*lcc_find_callback)(void *data, void *search);
+LCC_ERRNO
+lcc_read_response(lcc_connection *conn);
 
-LCC_ERROR
+LCC_ERRNO
+lcc_read_result_metadata(lcc_result *result);
+
+typedef void (*lcc_delete_callback)(void *);
+typedef uint8_t (*lcc_find_callback)(void *data, void *search);
+
+LCC_ERRNO
 lcc_list_add(LCC_LIST **list, void *data);
 
 LCC_LIST *
@@ -209,4 +285,9 @@ lcc_list_find(LCC_LIST *list, void *search, lcc_find_callback func);
 void
 lcc_list_delete(LCC_LIST *list, lcc_delete_callback func);
 
+void lcc_mem_close(lcc_mem *mem);
+void *lcc_mem_alloc(lcc_mem *mem,
+                    size_t size);
+LCC_ERRNO
+lcc_mem_init(lcc_mem *mem, size_t prealloc);
 

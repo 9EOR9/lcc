@@ -14,11 +14,11 @@
 #define LCC_MAX_USER_LEN 128
 
 typedef struct {
-  u_int32_t packet_len;
-  u_int8_t  sequence;
+  uint32_t packet_len;
+  uint8_t  sequence;
 } lcc_packet_header;
 
-#define LCC_PACKET_ERROR(header) (header->packet_len == (u_int32_t)-1)
+#define LCC_PACKET_ERROR(header) (header->packet_len == (uint32_t)-1)
 
 #define LCC_NET_BUFFER_SIZE 0x2000
 
@@ -33,11 +33,11 @@ enum enum_lcc_time {
 
 typedef struct {
   enum enum_lcc_time type;
-  u_int16_t year;
-  u_int8_t  month, day;
-  u_int8_t  hour, minute, second;
-  u_int32_t microseconds;
-  u_int8_t  negative;
+  uint16_t year;
+  uint8_t  month, day;
+  uint8_t  hour, minute, second;
+  uint32_t microseconds;
+  uint8_t  negative;
 } LCC_TIME;
 
 /* endianess dependend macros for int values */
@@ -87,38 +87,38 @@ float_to_le(float f)
 
 #define i8_to_p(b, i)       *((int8_t *)(b))= (i)
 #define i8_to_p_inc(b, i)   i8_to_p((b),(i)); (b)++
-#define ui8_to_p(b, u)      *((u_int8_t *)(b))= (u)
+#define ui8_to_p(b, u)      *((uint8_t *)(b))= (u)
 #define ui8_to_p_inc(b, u)  ui8_to_p((b),(u)); (b)++
 #define i16_to_p(b, i)      *((int16_t *)(b))= (i)
 #define i16_to_p_inc(b, i)  i16_to_p((b),(i)); (b)+= 2
-#define ui16_to_p(b, u)     *((u_int16_t *)(b))= (u)
+#define ui16_to_p(b, u)     *((uint16_t *)(b))= (u)
 #define ui24_to_p(b, u)     {\
                               *(b)=   (u_char)(u);\
-                              *(b+1)= (u_char)(u_int32_t)(u) >> 8;\
-                              *(b+2)= (u_char)(u_int32_t)(u) >> 16;\
+                              *(b+1)= (u_char)(uint32_t)(u) >> 8;\
+                              *(b+2)= (u_char)(uint32_t)(u) >> 16;\
                             }
 #define ui24_to_p_inc(b, u) ui24_to_p((b),(u)); (b)+= 3
 #define i32_to_p(b, i)      *((int32_t *)(b)) = (i)
 #define i32_to_p_inc(b, i)  i32_to_p((b),(i)); b+= 4
-#define ui32_to_p(b, u)     *((u_int32_t *)(b)) = (u)
+#define ui32_to_p(b, u)     *((uint32_t *)(b)) = (u)
 #define ui32_to_p_inc(b,u)  ui32_to_p((b),(u)); (b)+= 4
 #define i64_to_p(b, i)      *((int64_t *)(b)) = (i)
 #define i64_to_p_inc(b, i)  i64_to_p((b),(i)); b+= 8
-#define ui64_to_p(b, u)     *((u_int64_t *)(b)) = (u)
+#define ui64_to_p(b, u)     *((uint64_t *)(b)) = (u)
 #define ui64_to_p_inc(b, u) ui64_to_p((b),(u)); b+= 8
 
 #define p_to_i8(b)       *((int8_t *)(b))
 #define p_to_i8_inc(b)   p_to_i8((b)); b++;
-#define p_to_ui8(b)      (u_int8_t)p_to_i8(b)
+#define p_to_ui8(b)      (uint8_t)p_to_i8(b)
 #define p_to_ui8_inc(b)  p_to_ui8((b)++);
 #define p_to_i16(b)      *((int16_t *)(b))
-#define p_to_ui16(b)     *((u_int16_t *)(b))
-#define p_to_ui16_inc(b) *((u_int16_t *)(b)); b+= 2;
-#define p_to_ui24(b)     (u_int32_t)(*((u_int32_t *)(b)) & 0xFFFFFF)
+#define p_to_ui16(b)     *((uint16_t *)(b))
+#define p_to_ui16_inc(b) *((uint16_t *)(b)); b+= 2;
+#define p_to_ui24(b)     (uint32_t)(*((uint32_t *)(b)) & 0xFFFFFF)
 #define p_to_i32(b)      *((int32_t *)(b))
-#define p_to_ui32(b)     *((u_int32_t *)(b))
+#define p_to_ui32(b)     *((uint32_t *)(b))
 #define p_to_i64(b)      *((int64_t *)(b))
-#define p_to_ui64(b)     *((u_int64_t *)(b))
+#define p_to_ui64(b)     *((uint64_t *)(b))
 
 /* store/get float value (IEEE 754 single precision) */
 #define f4_to_p(b,f)    memcpy((void *)(b), (&f), sizeof(float))
@@ -145,7 +145,7 @@ static inline double p_to_d(u_char *b)
 }
 
 /* store length encoded and increase buffer offset */
-static inline u_char *lenc_to_p(u_char *b, u_int64_t lenc)
+static inline u_char *lenc_to_p(u_char *b, uint64_t lenc)
 {
   if (lenc < 251ULL)
   {
@@ -154,12 +154,12 @@ static inline u_char *lenc_to_p(u_char *b, u_int64_t lenc)
   } else if (lenc < 65536ULL)
   {
     *b++= 0xFC;
-    ui16_to_p(b, (u_int16_t)lenc);
+    ui16_to_p(b, (uint16_t)lenc);
     return b+2;
   } else if (lenc < 16777216ULL)
   {
     *b++= 0xFD;
-    ui24_to_p(b, (u_int32_t)lenc);
+    ui24_to_p(b, (uint32_t)lenc);
     return b+3;
   }
   *b++= 0xFE;
@@ -167,7 +167,7 @@ static inline u_char *lenc_to_p(u_char *b, u_int64_t lenc)
   return b+8;
 }
 
-static inline u_int8_t lenc_length(size_t length)
+static inline uint8_t lenc_length(size_t length)
 {
   #define MAX_LENC_SIZE 9
   unsigned char buffer[MAX_LENC_SIZE], *p;
@@ -180,60 +180,60 @@ static inline u_char *strlenc_to_p(u_char *buffer, u_char *str, size_t len)
 {
   u_char *start;
 
-  start= lenc_to_p(buffer, (u_int64_t)len);
+  start= lenc_to_p(buffer, (uint64_t)len);
   memcpy(start, str, len);
   return start + len;
 }
 
-static inline u_int64_t p_to_lenc(u_char **p, u_char *end, u_int8_t *error)
+static inline uint64_t p_to_lenc(u_char **p, u_char *end, uint8_t *error)
 {
   u_char *pos= *p;
   *error= 0;
 
   if (*pos < 251)
   {
-    p++;
-    return (u_int64_t)p_to_ui8(pos);
+    (*p)++;
+    return (uint64_t)p_to_ui8(pos);
   }
   if (*pos == 0xFB)
   {
-    p++;
-    return ((u_int64_t)~0);
+    (*p)++;
+    return ((uint64_t)~0);
   }
   if (*pos == 0xFC)
   {
     if (end - pos < 3)
     {
       *error= 1;
-      return ((u_int64_t)~0);
+      return ((uint64_t)~0);
     }
-    p+=3;
-    return (u_int64_t)p_to_ui16(pos+1);
+    (*p)+=3;
+    return (uint64_t)p_to_ui16(pos+1);
   } else if (*pos == 0xFD)
   {
     if (end - pos < 4)
     {
       *error= 1;
-      return ((u_int64_t)~0);
+      return ((uint64_t)~0);
     }
-    p+=4;
-    return (u_int64_t)p_to_ui24(pos+1);
+    (*p)+=4;
+    return (uint64_t)p_to_ui24(pos+1);
   } else if (*pos == 0xFE)
   {
     if (end - pos < 9)
     {
       *error= 1;
-      return ((u_int64_t)~0);
+      return ((uint64_t)~0);
     }
-    p+=9;
+    (*p)+=9;
     return p_to_ui64(pos+1);
   }
   return 0;
 }
 
-static inline u_int8_t time_to_p(LCC_TIME *ltime, u_char *b)
+static inline uint8_t time_to_p(LCC_TIME *ltime, u_char *b)
 {
-  u_int8_t len= 0;
+  uint8_t len= 0;
   switch(ltime->type)
   {
     case TIME_DATE:
@@ -273,10 +273,10 @@ static inline u_int8_t time_to_p(LCC_TIME *ltime, u_char *b)
 
 /* converts buffer into time structure, returns
    number of characters read from buffer */
-static inline u_int8_t p_to_time(u_char *b, LCC_TIME *ltime)
+static inline uint8_t p_to_time(u_char *b, LCC_TIME *ltime)
 {
-  u_int8_t len= *b;
-  u_int8_t has_ms= 0;
+  uint8_t len= *b;
+  uint8_t has_ms= 0;
 
   memset(ltime, 0, sizeof(LCC_TIME));
 

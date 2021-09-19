@@ -13,21 +13,22 @@
 #define LCC_ERROR_INFO __FILE__, __func__, __LINE__
 
 /* clear error and reset sqlstate to "00000" */
-static inline void lcc_clear_error(lcc_error *error)
+static inline void lcc_clear_error(LCC_ERROR *error)
 {
-  memset(error, '\0', sizeof(lcc_error));
+  memset(error, '\0', sizeof(LCC_ERROR));
   strcpy(error->sqlstate, "00000");
 }
 
 /* set error */
-void lcc_set_error(lcc_error *error,
-                   const char *file,
-                   const char *func,
-                   u_int32_t lineno,
-                   u_int16_t error_no,
-                   const char *sqlstate,
-                   const char *error_message,
-                   ...);
+LCC_ERRNO
+lcc_set_error(LCC_ERROR *error,
+              const char *file,
+              const char *func,
+              uint32_t lineno,
+              uint16_t error_no,
+              const char *sqlstate,
+              const char *error_message,
+              ...);
 
 #define ER_OK                               0 /* success */
 
@@ -46,4 +47,7 @@ void lcc_set_error(lcc_error *error,
 #define ER_ALREADY_INITIALIZED              2012
 #define ER_INVALID_BUFFER_SIZE              2013
 #define ER_UNSUPPORTED_SERVER_VERSION       2014
+#define ER_INVALID_VALUE                    2015
+#define ER_UNKNOWN_FIELD_ATTR               2016
+#define ER_NO_RESULT_AVAILABLE              2017
 
