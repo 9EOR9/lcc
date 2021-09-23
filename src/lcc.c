@@ -21,7 +21,7 @@ uint8_t lcc_initialized= 0;
  * @return LCC_ERRNO ER_OK on success, in case the initialozation failed an error code.
 */
 LCC_ERRNO API_FUNC
-LCC_init_handle(LCC_HANDLE **handle,  LCC_HANDLE_TYPE type, void *connection __attribute__((unused)))
+LCC_init_handle(LCC_HANDLE **handle,  LCC_HANDLE_TYPE type, LCC_HANDLE *connection __attribute__((unused)))
 {
   uint16_t rc;
 
@@ -47,16 +47,34 @@ LCC_init_handle(LCC_HANDLE **handle,  LCC_HANDLE_TYPE type, void *connection __a
     {
       if (!connection)
         return ER_INVALID_HANDLE;
+      if (!((lcc_connection *)connection)->column_count)
+        return ER_NO_RESULT_AVAILABLE;
       if (!(*handle= (LCC_HANDLE *)calloc(1, sizeof(lcc_result))))
         return ER_OUT_OF_MEMORY;
       (*handle)->type= LCC_RESULT;
-      ((lcc_result *)(*handle))->conn= connection;
+      ((lcc_result *)(*handle))->conn= (lcc_connection *)connection;
+      lcc_list_add(&((lcc_connection *)connection)->handles, *handle);
+      return lcc_read_result_metadata((lcc_result *)*handle);
       break;
     }
     default:
       return ER_INVALID_HANDLE_TYPE;
   }
   return ER_OK;
+}
+
+static void lcc_invalidate_connection(LCC_HANDLE *handle)
+{
+  if (!handle)
+    return;
+  switch (handle->type) {
+  case LCC_RESULT:
+    ((lcc_result *)handle)->conn= NULL;
+    break;
+  default:
+    break;
+  }
+  return;
 }
 
 static void lcc_free_connection_mem(lcc_connection *conn)
@@ -84,17 +102,26 @@ LCC_close_handle(LCC_HANDLE *handle)
     case LCC_CONNECTION:
     {
       lcc_connection *conn= (lcc_connection *)handle;
+      LCC_LIST *list= conn->handles;
       lcc_io_close(conn);
       lcc_free_connection_mem(conn);
-      break;
+
+      /* notify handles which rely on this connection */
+      while (list) {
+        lcc_invalidate_connection((LCC_HANDLE *)list->data);
+        list= list->next;
+      }
+      lcc_list_delete(conn->handles, NULL);
     }
+    break;
     case LCC_RESULT:
     {
       lcc_result *result = (lcc_result *)handle;
       if (result->memory.in_use)
         lcc_mem_close(&result->memory);
-      break;
+      free(result);
     }
+    break;
     default:
       return ER_INVALID_HANDLE;
   }
@@ -157,19 +184,26 @@ LCC_get_error(LCC_HANDLE *handle)
  *
  */
 LCC_ERRNO API_FUNC
-LCC_get_info(LCC_HANDLE *handle, enum LCC_get_server_info info, void *buffer)
+LCC_get_info(LCC_HANDLE *handle, LCC_INFO info, void *buffer)
 {
-  if (!lcc_valid_handle(handle, LCC_CONNECTION))
-    return ER_INVALID_HANDLE;
-
-  buffer= NULL;
-
   switch(info) {
+    case RESULT_INFO_ROW_COUNT:
+      CHECK_HANDLE_TYPE(handle, LCC_RESULT);
+      *((uint64_t *)buffer)= ((lcc_result *)handle)->row_count;
+      break;
+    case RESULT_INFO_ROW:
+      CHECK_HANDLE_TYPE(handle, LCC_RESULT);
+      *((LCC_STRING **)buffer)= ((lcc_result *)handle)->data;
+      break;
+    case RESULT_INFO_COLUMNS:
+      CHECK_HANDLE_TYPE(handle, LCC_RESULT);
+      *((LCC_COLUMN **)buffer)= ((lcc_result *)handle)->columns;
+      break;
+ 
     default:
       return ER_INVALID_OPTION;
   }
-
-  return 0;
+  return ER_OK;
 }
 
 /**
@@ -212,8 +246,10 @@ LCC_get_session_track_info(LCC_HANDLE *hdl,
 
 int main()
 {
-  LCC_HANDLE *conn;
+  LCC_HANDLE *conn, *result;
   LCC_ERRNO rc;
+  LCC_COLUMN *columns;
+  uint8_t eof= 0;
   int sock, ret;
   const char *filenames[]= {"/etc/my.cnf","/home/georg/.my.cnf", NULL};
 
@@ -239,10 +275,28 @@ int main()
   rc= lcc_read_response((lcc_connection *)conn);
   printf("rc=%d\n", rc);
 
-  rc= LCC_execute(conn, "SELECT 1,2,'foo'", -1);
+  rc= LCC_execute(conn, "SELECT 1,2,'foo' UNION SELECT 2,3,'bar' UNION SELECT 3,4,'foobar'", -1);
   printf("rc=%d\n", rc);
   rc= lcc_read_response((lcc_connection *)conn);
   printf("rc=%d\n", rc);
+  LCC_init_handle(&result, LCC_RESULT, conn);
+
+  rc= LCC_get_info(result, RESULT_INFO_COLUMNS, &columns);
+  printf("rc=%d\n", rc);
+
+  while (!eof && rc == ER_OK) {
+    rc= lcc_result_fetch_one((lcc_result *)result, &eof);
+    if (!eof && !rc) {
+      int i;
+      for (i= 0; i < 3; i++)
+        printf("%.*s ", (int)((lcc_result *)result)->data[i].len, ((lcc_result *)result)->data[i].str);
+      printf("\n");
+    }
+  }
+  printf("max_length: %d  length: %d \n", columns[1].max_column_size, columns[1].column_size);
+  printf("num_rwos: %lu\n", ((lcc_result *)result)->row_count);
+
+  LCC_close_handle(result);
   LCC_close_handle(conn);
 
   destroy_inet_socket(sock);

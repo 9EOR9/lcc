@@ -193,7 +193,8 @@ typedef struct {
   lcc_client_options options;
   lcc_configuration configuration;
   lcc_io io;
-  uint32_t    column_count;
+  uint32_t column_count;
+  LCC_LIST *handles;  /* list of handles which depend on connection */
 } lcc_connection;
 
 typedef struct {
@@ -202,7 +203,14 @@ typedef struct {
   lcc_connection *conn;
   lcc_mem     memory;
   LCC_COLUMN  *columns;
+  LCC_STRING  *data;
+  uint64_t    row_count;
 } lcc_result;
+
+typedef struct {
+  LCC_HANDLE_TYPE type;
+  lcc_connection *conn;
+} lcc_statement;
 
 /* type of configuration option */
 enum enum_configuration_type {
@@ -272,6 +280,9 @@ lcc_read_response(lcc_connection *conn);
 
 LCC_ERRNO
 lcc_read_result_metadata(lcc_result *result);
+
+LCC_ERRNO
+lcc_result_fetch_one(lcc_result *result, uint8_t *eof);
 
 typedef void (*lcc_delete_callback)(void *);
 typedef uint8_t (*lcc_find_callback)(void *data, void *search);

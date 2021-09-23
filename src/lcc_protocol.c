@@ -45,12 +45,12 @@ lcc_read_server_error_packet(char *buffer, size_t buffer_length, LCC_ERROR *erro
   char *p= buffer, 
          *end= buffer + buffer_length;
 
+  memset(error, 0, sizeof(LCC_ERROR));
   if ((end - p) < 2)
     return ER_MALFORMED_PACKET;
   error->error_number= p_to_ui16(p);
 
   p+= 2;
-  memset(error, 0, sizeof(LCC_ERROR));
   if (error->error_number != 0xFFFF)
   {
     if ((end - p) < 6)
@@ -381,7 +381,9 @@ start:
        indication packet */
     error_no= p_to_ui16(pos);
     if (error_no != 0xFFFF)
-       rc= lcc_read_server_error_packet(pos, end - pos, &conn->error);
+    {
+      return lcc_read_server_error_packet(pos, end - pos, &conn->error);
+    }
 
     if (conn->configuration.callbacks.report_progress)
     {
@@ -537,15 +539,8 @@ lcc_read_result_metadata(lcc_result *result)
   uint8_t error= 0;
   lcc_connection *conn= result->conn;
 
-  if (result)
+  if (!result || result->type != LCC_RESULT)
     return ER_INVALID_HANDLE;
-
-  rc= lcc_io_read(result->conn, &pkt_len);
-  if (rc)
-    return rc;
-  pos= (char *)conn->io.read_pos;
-  end= pos + pkt_len;
-  conn->io.read_pos= end;
 
   if (lcc_mem_init(&result->memory, 8192) != ER_OK)
     return lcc_set_error(&conn->error, LCC_ERROR_INFO, ER_OUT_OF_MEMORY, "HY000", NULL, 8192);
@@ -570,6 +565,7 @@ lcc_read_result_metadata(lcc_result *result)
     pos= conn->io.read_pos;
     end= pos + pkt_len;
     conn->io.read_pos= end;
+
 
     /* string values */
     for (j=0; j < sizeof(column_offsets) / sizeof(size_t); j++)
@@ -620,7 +616,7 @@ lcc_read_result_metadata(lcc_result *result)
 
     column.charset_nr= p_to_ui16(pos);
     pos+= 2;
-    column.max_column_size= p_to_ui32(pos);
+    column.column_size= p_to_ui32(pos);
     pos+= 4;
     column.type= p_to_ui8(pos);
     pos++;
@@ -630,8 +626,74 @@ lcc_read_result_metadata(lcc_result *result)
     pos+= 3;
     memcpy(&result->columns[i], &column, sizeof(LCC_COLUMN));
   }
-  conn->status= CONN_STATUS_RESULT; 
-  return ER_OK;
+  conn->status= CONN_STATUS_RESULT;
+  /* last packet should be EOF packet */
+  return lcc_read_response(conn);
+
 malformed_packet:
   return lcc_set_error(&conn->error, LCC_ERROR_INFO, ER_MALFORMED_PACKET, "HY000", NULL, pos - conn->io.read_pos);
+}
+
+LCC_ERRNO lcc_result_fetch_one(lcc_result *result, uint8_t *eof)
+{
+  LCC_ERRNO rc;
+  size_t pkt_len;
+  uint8_t error= 0;
+  uint32_t i;
+  char *pos, *end;
+  
+  if ((rc= lcc_io_read(result->conn, &pkt_len)))
+    return rc;
+
+  pos= result->conn->io.read_pos;
+  end= pos + pkt_len;
+
+  result->conn->io.read_pos= end;
+
+  if (pkt_len <= 8 && (u_char)*pos == 0xFE)
+  {
+    *eof= 1;
+    pos++;
+    result->conn->server.warning_count= p_to_ui16(result->conn->io.read_pos);
+    pos+= 2;
+    result->conn->server.status = p_to_ui16(result->conn->io.read_pos + 3);
+    pos+= 2;
+    return ER_OK;
+  }
+
+  if (!result->conn->column_count)
+    return ER_NO_RESULT_AVAILABLE;
+
+  if (!result->data)
+  {
+    if (!(result->data= (LCC_STRING *)lcc_mem_alloc(&result->memory,
+                     result->conn->column_count * sizeof(LCC_STRING))))
+      return lcc_set_error(&result->conn->error, LCC_ERROR_INFO, ER_OUT_OF_MEMORY, "HY000", NULL,
+                         sizeof(LCC_STRING) * result->conn->column_count);
+  }
+
+  for (i=0; i < result->conn->column_count; i++)
+  {
+    result->data[i].len= p_to_lenc((u_char **)&pos, (u_char *)end, &error);
+    if (error || pos + result->data[i].len > end)
+      goto malformed_packet;
+
+    if (!result->data[i].len)
+      result->data[i].str= NULL;
+    else
+    {
+      result->data[i].str= pos;
+    }
+    if (result->data[i].len > result->columns[i].max_column_size)
+    {
+      result->columns[i].max_column_size= result->data[i].len;
+    }
+    pos+= result->data[i].len;
+  }
+  result->row_count++;
+  return ER_OK;
+    
+malformed_packet:
+  return lcc_set_error(&result->conn->error, LCC_ERROR_INFO, ER_MALFORMED_PACKET, "HY000", NULL, 
+                       pos - result->conn->io.read_pos);
 }

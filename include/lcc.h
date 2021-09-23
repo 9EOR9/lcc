@@ -23,14 +23,19 @@ if (!(hdl)) \
 if ((hdl)->type != (hdl_type)) \
   return ER_INVALID_HANDLE;
 
-enum LCC_get_server_info {
-  GET_CURRENT_DB= 0,
-  GET_CAPABILITIES,
-  GET_STATUS,
-  GET_AFFECTED_ROWS,
-  GET_LAST_INSERT_ID,
-  GET_WARNING_COUNT
-};
+typedef enum {
+  SERVER_INFO_CURRENT_DB= 0,
+  SERVER_INFO_CAPABILITIES,
+  SERVER_INFO_STATUS,
+  SERVER_INFO_AFFECTED_ROWS,
+  SERVER_INFO_LAST_INSERT_ID,
+  SERVER_INFO_WARNING_COUNT,
+  SERVER_INFO_COLUMN_COUNT,
+  RESULT_INFO_ROW_COUNT,
+  RESULT_INFO_COLUMNS,
+  RESULT_INFO_PROTOCOL,
+  RESULT_INFO_ROW
+} LCC_INFO;
 
 typedef enum {
   LCC_OPT_CURRENT_DB= 1,
@@ -203,6 +208,7 @@ typedef struct {
   uint8_t decimals;
   uint16_t flags;
   uint16_t charset_nr;
+  uint32_t column_size;
   uint32_t max_column_size;
   uint8_t type;
 } LCC_COLUMN;
@@ -225,10 +231,10 @@ typedef struct {
 
 /* API calls */
 LCC_ERRNO API_FUNC
-LCC_init_handle(LCC_HANDLE **handle, LCC_HANDLE_TYPE type, void *base_handle);
+LCC_init_handle(LCC_HANDLE **handle, LCC_HANDLE_TYPE type, LCC_HANDLE *connection);
 
 LCC_ERRNO API_FUNC
-LCC_get_info(LCC_HANDLE *handle, enum LCC_get_server_info info, void *buffer);
+LCC_get_info(LCC_HANDLE *handle, LCC_INFO info, void *buffer);
 
 LCC_ERRNO API_FUNC
 lcc_close_handle(LCC_HANDLE *handle);
@@ -238,6 +244,9 @@ LCC_configuration_set(LCC_HANDLE *handle,
                       const char *option_str,
                       LCC_OPTION option,
                       void *buffer);
+
+const LCC_COLUMN API_FUNC
+*LCC_result_columns(LCC_HANDLE *handle);
 
 LCC_ERRNO 
 LCC_set_option(LCC_HANDLE *hdl, LCC_OPTION option, ...);
