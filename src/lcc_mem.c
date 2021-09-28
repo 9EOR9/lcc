@@ -97,3 +97,20 @@ void lcc_mem_close(lcc_mem *mem)
   memset(mem, 0, sizeof(lcc_mem));
   return;
 }
+
+/**
+ * @brief: resets memory pool 
+ *
+ * @param: mem - memory pool
+ *
+ * resets the entire memory pool by marking all blocks
+ * as free
+ */
+void lcc_mem_reset(lcc_mem *mem)
+{
+  while (mem->block)
+  {
+    mem->block->used_size= 0;
+    mem->block= mem->block->next;
+  }
+}

@@ -9,6 +9,7 @@
 #pragma once
 
 #include <string.h>
+#include <errno.h>
 
 #define LCC_ERROR_INFO __FILE__, __func__, __LINE__
 
@@ -50,4 +51,6 @@ lcc_set_error(LCC_ERROR *error,
 #define ER_INVALID_VALUE                    2015
 #define ER_UNKNOWN_FIELD_ATTR               2016
 #define ER_NO_RESULT_AVAILABLE              2017
+#define ER_STMT_WITHOUT_PARAMETERS          2018
+#define ER_STMT_NOT_READY                   2019
 

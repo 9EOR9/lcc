@@ -697,3 +697,72 @@ malformed_packet:
   return lcc_set_error(&result->conn->error, LCC_ERROR_INFO, ER_MALFORMED_PACKET, "HY000", NULL, 
                        pos - result->conn->io.read_pos);
 }
+
+
+LCC_ERRNO
+lcc_read_prepare_response(lcc_stmt *stmt)
+{
+  char *pos, *end;
+  size_t pkt_len= 0;
+  int rc;
+  uint16_t i;
+
+  if ((rc= lcc_io_read(stmt->conn, &pkt_len)))
+    return rc;
+
+  pos= stmt->conn->io.read_pos;
+  end= pos + pkt_len;
+
+  stmt->conn->io.read_pos= end;
+
+  if ((u_char)*pos == 0xFF)
+  {
+    pos++;
+    return lcc_read_server_error_packet(pos, end - pos, &stmt->error);
+  }
+
+  pos++;
+  if (end - pos < 6)
+    goto malformed_packet;
+
+  stmt->id= p_to_ui32(pos);
+  pos+= 4;
+  stmt->conn->column_count= stmt->column_count= p_to_ui16(pos);
+  pos+= 2;
+  stmt->param_count= p_to_ui16(pos);
+  pos+= 2;
+
+  /* parameter meta data:
+   * since there is no useful information,
+   * we will just skip the metadata packets 
+   */
+  if (stmt->param_count) {
+    for (i=0; i < stmt->param_count; i++)
+    {
+      if ((rc= lcc_io_read(stmt->conn, &pkt_len)))
+        return rc;
+      stmt->conn->io.read_pos+= pkt_len;
+    }
+    /* skip eof packet */
+    if ((rc= lcc_read_response(stmt->conn)))
+      return rc;    
+  }
+
+  if (stmt->result)
+    LCC_reset_handle((LCC_HANDLE *)stmt->result);
+
+  /* if column_count is > 0, metadata will follow */
+  if (stmt->column_count)
+  {
+    if ((rc= LCC_init_handle((LCC_HANDLE **)&stmt->result, LCC_RESULT, (LCC_HANDLE *)stmt->conn)))
+      return rc;
+    return lcc_read_result_metadata(stmt->result);
+  }
+  return ER_OK;
+
+malformed_packet:
+  return lcc_set_error(&stmt->error, LCC_ERROR_INFO, ER_MALFORMED_PACKET, "HY000", NULL, 
+                       pos - stmt->conn->io.read_pos);
+}
+
+

@@ -8,6 +8,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/poll.h>
+#include <ctype.h>
 
 #define MAX_COMM_PACKET_SIZE 0xFFFFFF
 #define COMM_HEADER_SIZE 4
@@ -20,6 +21,36 @@
 #endif
 
 extern uint32_t comm_buffer_length;
+
+void lcc_dump(const char* title, const void* data, size_t size) {
+	char ascii[17];
+	size_t i, j;
+	ascii[16] = 0;
+  if (title)
+    printf("%s\n", title);
+	for (i = 0; i < size; ++i) {
+		printf("%02X ", ((unsigned char*)data)[i]);
+		if (isprint(((unsigned char*)data)[i]))
+			ascii[i % 16] = ((unsigned char*)data)[i];
+		else
+			ascii[i % 16] = '.';
+		if ((i+1) % 8 == 0 || i+1 == size) {
+			printf(" ");
+			if ((i+1) % 16 == 0) {
+				printf("|  %.*s  |\n", 16, ascii);
+			} else if (i+1 == size) {
+				ascii[(i+1) % 16] = '\0';
+				if ((i+1) % 16 <= 8) {
+					printf(" ");
+				}
+				for (j = (i+1) % 16; j < 16; ++j) {
+					printf("   ");
+				}
+				printf("|  %-*s  |\n", 16, ascii);
+			}
+		}
+	}
+}
 
 void 
 lcc_io_close(lcc_connection *conn)
@@ -198,6 +229,7 @@ lcc_io_read_socket(lcc_connection *conn, char *buffer, size_t size, ssize_t *byt
       return ER_COMM_READ;
     }
   }
+  lcc_dump("read_socket", buffer, *bytes_read);
   return ER_OK;
 }
 
@@ -206,9 +238,13 @@ lcc_io_write_socket(lcc_connection *conn,
                       char *buffer,
                       size_t len)
 {
+  int rc;
   int flags= MSG_DONTWAIT | MSG_NOSIGNAL;
   conn->configuration.write_timeout= 1000;
-  while (send(conn->socket, buffer, len, flags) < -1)
+
+  lcc_dump("write_socket", buffer, len);
+
+  while ((rc= send(conn->socket, buffer, len, flags)) < -1)
   {
     if ((socket_error() != EAGAIN) || conn->configuration.write_timeout == 0)
       return ER_COMM_WRITE;
@@ -219,6 +255,7 @@ lcc_io_write_socket(lcc_connection *conn,
       return ER_COMM_WRITE;
     }
   }
+  printf("sent - rc=%d\n", rc);
   return ER_OK;
 }
 
@@ -240,6 +277,8 @@ lcc_io_write_buffer(lcc_connection *conn,
   LCC_ERRNO rc;
   char *end= conn->io.writebuf + conn->io.write_size;
   uint32_t free_bytes= end - conn->io.write_pos;
+
+  printf("wb: %u\n", len);
 
   if (!buffer || !len)
     return ER_OK;
@@ -264,18 +303,18 @@ lcc_io_write_buffer(lcc_connection *conn,
   * format: pkt_len (3 bytes) packet_number (1 byte) [command (1 byte)] data
 **/
 LCC_ERRNO
-lcc_io_write(lcc_connection *conn, lcc_ioand command, char *buffer, size_t len)
+lcc_io_write(lcc_connection *conn, lcc_io_cmd command, char *buffer, size_t len)
 {
   char header[COMM_HEADER_SIZE + 1];
   uint8_t pkt_nr= 0;
   LCC_ERRNO rc;
 
-  if (command)
-    len+= 1;
   conn->io.write_pos= conn->io.writebuf;
 
   if (command == CMD_NONE)
     pkt_nr= 1;
+//  else
+//    len+= 1;
 
   /* if buffer exceeds MAX_PACKET_SIZE, we need to split package */
   while (len >= MAX_COMM_PACKET_SIZE)
@@ -301,7 +340,7 @@ lcc_io_write(lcc_connection *conn, lcc_ioand command, char *buffer, size_t len)
   }
   /* Write remaining bytes, which might be also zero 
      (see https://mariadb.com/kb/en/0-packet/) */
-  ui24_to_p(header, len);
+  ui24_to_p(header, len + (command != CMD_NONE));
   header[3]= pkt_nr++;
   if (command != CMD_NONE)
     header[4]= (uint8_t)command;

@@ -32,6 +32,8 @@ const char *lcc_errormsg[]=
   /* 2015 */ "Unknown or invalid handle",
   /* 2016 */ "Unknown field attribute (=%d)."
   /* 2017 */ "No result set available."
+  /* 2018 */ "Statement doesn't have parameter(s)."
+  /* 2019 */ "Statement can't be executed yet."
 };
 
 #define LCC_CLIENT_ERROR(x) lcc_errormsg[(x)-2000]

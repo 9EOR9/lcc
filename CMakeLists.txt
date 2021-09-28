@@ -17,12 +17,17 @@ if(LCC_VERSION_SUFFIX)
 set(LCC_VERSION_STR "${LCC_VERSION_STR}-${LCC_VERSION_SUFFIX}")
 endif()
 
+
 #standard settings
 set(LCC_DEFAULT_PORT 3306)
 set(LCC_DEFAULT_UNIX_SOCKET "/tmp/mysql.sock")
 
 if(CMAKE_COMPILER_IS_GNUCC)
-  SET(CMAKE_C_FLAGS "-Wunused -Wlogical-op -Wno-uninitialized  -Wall -Wextra -Wformat-security -Wno-init-self -Wwrite-strings -Wshift-count-overflow -Wdeclaration-after-statement -Wno-undef -Wno-unknown-pragmas")
+  set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "-Wunused -Wlogical-op -Wno-uninitialized  -Wall -Wextra -Wformat-security -Wno-init-self -Wwrite-strings -Wshift-count-overflow -Wdeclaration-after-statement -Wno-undef -Wno-unknown-pragmas")
+  if(sanitizer)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-omit-frame-pointer -fsanitize=${sanitizer}")
+    set(CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS_DEBUG} -fno-omit-frame-pointer -fsanitize=${sanitizer}")
+  endif()
 endif()
 
 configure_file(${CMAKE_SOURCE_DIR}/include/lcc_config.h.in
@@ -43,6 +48,8 @@ set (source_files
      src/lcc_list.c
      src/lcc_mem.c
      src/lcc_result.c
+     src/lcc_convert.c
+     src/lcc_stmt.c
      external/sha1/sha1.c
      src/lcc.c)
 

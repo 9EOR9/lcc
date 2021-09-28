@@ -176,13 +176,13 @@ static inline uint8_t lenc_length(size_t length)
   return p - buffer;
 }
 
-static inline u_char *strlenc_to_p(u_char *buffer, u_char *str, size_t len)
+static inline size_t strlenc_to_p(u_char *buffer, u_char *str, size_t len)
 {
-  u_char *start;
+  u_char *pos;
 
-  start= lenc_to_p(buffer, (uint64_t)len);
-  memcpy(start, str, len);
-  return start + len;
+  pos= lenc_to_p(buffer, (uint64_t)len);
+  memcpy(pos, str, len);
+  return (pos - buffer) + len;
 }
 
 static inline uint64_t p_to_lenc(u_char **p, u_char *end, uint8_t *error)

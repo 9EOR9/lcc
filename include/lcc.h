@@ -30,7 +30,7 @@ typedef enum {
   SERVER_INFO_AFFECTED_ROWS,
   SERVER_INFO_LAST_INSERT_ID,
   SERVER_INFO_WARNING_COUNT,
-  SERVER_INFO_COLUMN_COUNT,
+  SERVER_INFO_LCC_COUNT,
   RESULT_INFO_ROW_COUNT,
   RESULT_INFO_COLUMNS,
   RESULT_INFO_PROTOCOL,
@@ -55,6 +55,8 @@ typedef enum {
   LCC_OPT_STATUS_CALLBACK,
   LCC_OPT_SESSION_STATUS_CALLBACK,
   LCC_OPT_PROGRESS_REPORT_CALLBACK,
+  LCC_OPT_STMT_PARAM_CALLBACK,
+  LCC_OPT_STMT_RESULT_CALLBACK,
   LCC_OPT_INVALID_OPTION= 0xFFFF
 } LCC_OPTION;
 
@@ -63,6 +65,37 @@ typedef enum {
   LCC_STATEMENT,
   LCC_RESULT
 } LCC_HANDLE_TYPE;
+
+typedef enum {
+  LCC_COLTYPE_DECIMAL_UNUSED= 0,
+  LCC_COLTYPE_INT8= 1,
+  LCC_COLTYPE_INT16= 2,
+  LCC_COLTYPE_INT32= 3,
+  LCC_COLTYPE_FLOAT= 4,
+  LCC_COLTYPE_DOUBLE= 5,
+  LCC_COLTYPE_NULL= 6,
+  LCC_COLTYPE_TIMESTAMP= 7,
+  LCC_COLTYPE_INT64= 8,
+  LCC_COLTYPE_INT24= 9,
+  LCC_COLTYPE_DATE= 10,
+  LCC_COLTYPE_TIME= 11,
+  LCC_COLTYPE_DATETIME= 12,
+  LCC_COLTYPE_YEAR= 13,
+  LCC_COLTYPE_NEWDATE_UNUSED= 14,
+  LCC_COLTYPE_VARCHAR= 15,
+  LCC_COLTYPE_BIT=16,
+  LCC_COLTYPE_JSON= 245,
+  LCC_COLTYPE_NEWDECIMAL= 246,
+  LCC_COLTYPE_ENUM= 247,
+  LCC_COLTYPE_SET= 248,
+  LCC_COLTYPE_BLOB8= 249,
+  LCC_COLTYPE_BLOB24= 250,
+  LCC_COLTYPE_BLOB64= 251,
+  LCC_COLTYPE_BLOB32= 252,
+  LCC_COLTYPE_VARSTR= 253,
+  LCC_COLTYPE_STR= 254,
+  LCC_COLTYPE_GEOMETRY= 255
+} LCC_COLTYPE;
 
 /* Capabilities */
 #define CAP_MYSQL                                   1
@@ -141,19 +174,24 @@ typedef enum {
 /* Compress and TLS will be activated on demand */
 #define CLIENT_DEFAULT_CAPS             ((CLIENT_CAP_FLAGS & ~CAP_COMPRESS) & ~CAP_TLS)
 
+typedef enum {
+  STMT_PARAM,
+  STMT_RESULT
+} LCC_STMT_PARAM_TYPE;
+
 typedef struct {
   LCC_HANDLE_TYPE type;
 } LCC_HANDLE;
-
-static inline uint8_t lcc_valid_handle(LCC_HANDLE *handle, LCC_HANDLE_TYPE type)
-{
-  return (handle && handle->type == type);
-}
 
 typedef struct {
   char *str;
   size_t len;
 } LCC_STRING;
+
+typedef struct {
+  void *buf;
+  size_t len;
+} LCC_BUFFER;
 
 typedef uint16_t LCC_ERRNO;
 
@@ -194,6 +232,15 @@ typedef enum {
   LCC_FIELD_ATTR_FORMAT
 } LCC_FIELD_ATTR;
 
+typedef enum {
+  LCC_INDICATOR_NTS= -1,
+  LCC_INDICATOR_NONE= 0,
+  LCC_INDICATOR_NULL= 1,
+  LCC_INDICATOR_DEFAULT= 2,
+  LCC_INDICATOR_IGNORE= 3,
+  LCC_INDICATOR_IGNORE_ROW= 4
+} LCC_INDICATOR;
+
 #define LCC_MAX_FIELD_ATTRS LCC_FIELD_ATTR_FORMAT + 1
 
 typedef struct {
@@ -212,6 +259,14 @@ typedef struct {
   uint32_t max_column_size;
   uint8_t type;
 } LCC_COLUMN;
+
+typedef struct {
+  LCC_BUFFER buffer;
+  LCC_COLTYPE buffer_type;
+  LCC_INDICATOR indicator;
+  uint8_t is_unsigned;
+  uint8_t has_data;
+} LCC_BIND;
 
 /* Server status flags */
 #define LCC_STATUS_IN_TRANS               1
@@ -237,7 +292,10 @@ LCC_ERRNO API_FUNC
 LCC_get_info(LCC_HANDLE *handle, LCC_INFO info, void *buffer);
 
 LCC_ERRNO API_FUNC
-lcc_close_handle(LCC_HANDLE *handle);
+LCC_close_handle(LCC_HANDLE *handle);
+
+LCC_ERRNO API_FUNC
+LCC_reset_handle(LCC_HANDLE *handle);
 
 LCC_ERRNO API_FUNC
 LCC_configuration_set(LCC_HANDLE *handle,
@@ -253,6 +311,21 @@ LCC_set_option(LCC_HANDLE *hdl, LCC_OPTION option, ...);
 
 uint8_t
 LCC_configuration_load_file(LCC_HANDLE *handle, const char **filenames, const char *section);
+
+LCC_ERRNO API_FUNC
+LCC_statement_prepare(LCC_HANDLE *handle,
+                      const char *stmt_str,
+                      size_t len);
+
+LCC_ERRNO API_FUNC
+LCC_statement_read_prepare_response(LCC_HANDLE *handle);
+
+LCC_ERRNO API_FUNC
+LCC_stmt_execute(LCC_HANDLE *handle);
+LCC_ERRNO API_FUNC
+LCC_stmt_set_param(LCC_HANDLE *handle, LCC_BIND *bind);
+LCC_ERRNO API_FUNC
+LCC_stmt_fill_exec_buffer(LCC_HANDLE *handle);
 
 #ifdef __cplusplus
 }

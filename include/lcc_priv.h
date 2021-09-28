@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-
+#include <lcc_error.h>
 /* Helper macros */
 
 #define lcc_MAX(v1,v2)\
@@ -64,7 +64,7 @@ typedef enum
   CMD_STMT_BULK_EXECUTE = 250,
   CMD_RESERVED_1 = 254, /* former COM_MULTI, now removed */
   CMD_NONE
-} lcc_ioand;
+} lcc_io_cmd;
 
 typedef enum {
   CONN_STATUS_READY=0,
@@ -99,6 +99,25 @@ typedef struct {
   void (*report_progress)(LCC_HANDLE *handle, uint8_t stage, uint8_t max_stage,
                          double progress, char *info, size_t length);
 } lcc_callbacks;
+
+/**
+ * @brief: callback function for parameters:
+ *
+ * @param: data - Parameter data, previously registered by 
+                  LCC_stmt_set_parameter function
+ * @param: buffer - contains row data in binary format
+ * @param: buffer_len - length of row data
+ * @param: row_nr - number of row
+ */
+typedef int (*stmt_param_callback)(void *data, LCC_BIND *bind, uint32_t row_nr);
+
+typedef enum {
+  STMT_STATUS_INIT= 0,
+  STMT_STATUS_PREPARE_DONE= 1,
+  STMT_STATUS_EXECUTE_DONE= 2,
+  STMT_STATUS_EXECUTEDIRECT_DONE= 3,
+  STMT_STATUS_HAVE_RESULT= 4
+} lcc_stmt_status;
 
 typedef struct {
   uint64_t affected_rows;
@@ -209,8 +228,30 @@ typedef struct {
 
 typedef struct {
   LCC_HANDLE_TYPE type;
+  /* internal */
   lcc_connection *conn;
-} lcc_statement;
+  lcc_stmt_status status;
+  LCC_ERROR      error;
+  lcc_mem        memory;
+  lcc_result     *result;
+  LCC_BIND       *params;
+  stmt_param_callback param_callback;
+  void           *callback_data;
+  uint32_t       id;
+  uint16_t       column_count;
+  uint16_t       param_count;
+  LCC_BUFFER     execbuf;
+  /* execbuf.len has aligned size, so we need to store the
+     exact length for io.write() */
+  size_t         exec_len;
+} lcc_stmt;
+
+typedef struct {
+  size_t display_len;
+  size_t store_len;
+  /* todo:
+  store and fetch functions */
+} lcc_bin_type;
 
 /* type of configuration option */
 enum enum_configuration_type {
@@ -241,6 +282,11 @@ static inline size_t lcc_align_size(size_t align_size, size_t size) {
   return (size + (align_size - 1)) & ~(align_size - 1);
 }
 
+static inline uint8_t lcc_validate_handle(LCC_HANDLE *handle, LCC_HANDLE_TYPE type)
+{
+  return (handle && handle->type == type) ? ER_OK : ER_INVALID_HANDLE;
+}
+
 
 LCC_ERRNO 
 lcc_auth(lcc_connection *conn,
@@ -255,7 +301,7 @@ void
 lcc_io_close(lcc_connection *conn);
 
 LCC_ERRNO
-lcc_io_write(lcc_connection *conn, lcc_ioand command, char *buffer, size_t len);
+lcc_io_write(lcc_connection *conn, lcc_io_cmd command, char *buffer, size_t len);
 
 void 
 lcc_io_close(lcc_connection *conn);
@@ -284,11 +330,15 @@ lcc_read_result_metadata(lcc_result *result);
 LCC_ERRNO
 lcc_result_fetch_one(lcc_result *result, uint8_t *eof);
 
+LCC_ERRNO
+lcc_read_prepare_response(lcc_stmt *stmt);
+
 typedef void (*lcc_delete_callback)(void *);
 typedef uint8_t (*lcc_find_callback)(void *data, void *search);
 
 LCC_ERRNO
 lcc_list_add(LCC_LIST **list, void *data);
+void lcc_list_clear_element(LCC_LIST *list, void *search);
 
 LCC_LIST *
 lcc_list_find(LCC_LIST *list, void *search, lcc_find_callback func);
@@ -302,3 +352,6 @@ void *lcc_mem_alloc(lcc_mem *mem,
 LCC_ERRNO
 lcc_mem_init(lcc_mem *mem, size_t prealloc);
 
+void lcc_mem_reset(lcc_mem *mem);
+
+void lcc_stmt_init_bin_types();

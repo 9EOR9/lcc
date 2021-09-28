@@ -160,6 +160,14 @@ lcc_get_configuration(const char *key,
   return NULL;
 }
 
+/**
+ * @brief Set configuration option
+ * @param handle: A handle which was previously created by
+                  LCC_init_handle
+ * @param option_str: option in string format
+ * @param option: option in numerical format
+ * @param buffer: value
+ */
 LCC_ERRNO API_FUNC
 LCC_configuration_set(LCC_HANDLE *handle,
                       const char *option_str,
@@ -315,29 +323,47 @@ LCC_configuration_load_file(LCC_HANDLE *handle, const char *filenames[], const c
 }
 
 LCC_ERRNO 
-LCC_set_option(LCC_HANDLE *hdl, LCC_OPTION option, ...)
+LCC_set_option(LCC_HANDLE *handle, LCC_OPTION option, ...)
 {
   va_list ap;
   void *opt1, *opt2;
   uint16_t error_code= ER_OK;
-  lcc_connection *conn= NULL;
 
   va_start(ap, option);
   opt1= va_arg(ap, void *);
 
-  if (hdl && hdl->type == LCC_CONNECTION)
-    conn= (lcc_connection *)hdl;
-
   switch(option) {
     /* callback function for server status */
     case LCC_OPT_STATUS_CALLBACK:
+    {
+      lcc_connection *conn= (lcc_connection *)handle;
+      if (!lcc_validate_handle(handle, LCC_CONNECTION))
+        return ER_INVALID_HANDLE;
       opt2= va_arg(ap, void *);
       conn->configuration.callbacks.status_change= opt1;
       conn->configuration.callbacks.status_flags= opt2 ? *((uint16_t *)opt2) : 0;
       break;
+    }
     case LCC_OPT_PROGRESS_REPORT_CALLBACK:
+    {
+      lcc_connection *conn= (lcc_connection *)handle;
+      if (!lcc_validate_handle(handle, LCC_CONNECTION))
+        return ER_INVALID_HANDLE;
       conn->configuration.callbacks.report_progress= opt1;
       break;
+    }
+    case LCC_OPT_STMT_PARAM_CALLBACK:
+    {
+      /* First parameter: user data,
+         second parameter callback_function */
+      lcc_stmt *stmt= (lcc_stmt *)handle;
+      if (!lcc_validate_handle(handle, LCC_STATEMENT))
+        return ER_INVALID_HANDLE;
+      stmt->callback_data= opt1;
+      opt2= va_arg(ap, void *);
+      stmt->param_callback= opt2;
+      break;
+    }
     default:
       error_code= ER_INVALID_OPTION;
   }
