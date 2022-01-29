@@ -94,8 +94,8 @@ float_to_le(float f)
 #define ui16_to_p(b, u)     *((uint16_t *)(b))= (u)
 #define ui24_to_p(b, u)     {\
                               *(b)=   (u_char)(u);\
-                              *(b+1)= (u_char)(uint32_t)(u) >> 8;\
-                              *(b+2)= (u_char)(uint32_t)(u) >> 16;\
+                              *(b+1)= (u_char)(u >> 8);\
+                              *(b+2)= (u_char)(u >> 16);\
                             }
 #define ui24_to_p_inc(b, u) ui24_to_p((b),(u)); (b)+= 3
 #define i32_to_p(b, i)      *((int32_t *)(b)) = (i)
